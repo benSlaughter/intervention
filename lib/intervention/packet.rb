@@ -30,7 +30,7 @@ module Intervention
         case headers['transfer-encoding']
         when 'chunked'
           body.content.scan(/.{1,1000}/).each do |slice|
-            socket.write slice.length.to_s(16) + trail
+            socket.write slice.size.to_s(16) + trail
             socket.write slice + trail
           end
           socket.write "0" + trail

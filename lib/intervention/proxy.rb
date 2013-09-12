@@ -60,8 +60,6 @@ module Intervention
         end
       end
 
-    rescue Interrupt
-      puts "ERROR: Interrupt!"
     ensure
       @server_socket.close if @server_socket
       new_socket.close if defined? new_socket
