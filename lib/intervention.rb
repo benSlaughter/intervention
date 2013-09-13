@@ -4,7 +4,7 @@ require 'json'
 require 'uri'
 
 require './lib/intervention/proxy'
-require './lib/intervention/packet'
+require './lib/intervention/transaction'
 
 module Intervention
   class << self
@@ -63,9 +63,22 @@ module Intervention
 end
 
 def me
-  prox = Intervention.new_proxy "name", auto_start: true do |pr|
+  @prox = Intervention.new_proxy "name", auto_start: true do |pr|
     pr.listen_port = 2222
     pr.host_port = 80
     pr.host_address = 'newapi.int.brandwatch.com'
+
+    pr.on_request do |t|
+      p t
+
+      p t.request.headers.verb
+    end
+
+    pr.on_response do |t|
+      p t
+
+      p t.request.headers.verb
+      p t.response.headers.request
+    end
   end
 end

@@ -2,20 +2,24 @@ Thread.abort_on_exception=true
 
 module Intervention
   class Proxy
-    attr_reader :name, :server_socket, :state
+    attr_reader :name, :state
     attr_accessor :listen_port, :host_address, :host_port, :debug
 
-    def initialize name, **kwargs
-      @name = name
-      @debug = true
-      @state = "asleep"
-      @listen_port = kwargs[:listen_port] || Intervention.listen_port
-      @host_address = kwargs[:host_address] || Intervention.host_address
-      @host_port = kwargs[:host_port] || Intervention.host_port
+    def inspect
+      "#<Proxy:%s listen:%s host:%s port:%s>" % [@state,@listen_port,@host_address,@host_port]
     end
 
-    def on_request(&block); @on_request = block; end
-    def on_response(&block); @on_response = block; end
+    def initialize name, **kwargs
+      @name         = name
+      @debug        = true
+      @state        = "asleep"
+      @listen_port  = kwargs[:listen_port] || Intervention.listen_port
+      @host_address = kwargs[:host_address] || Intervention.host_address
+      @host_port    = kwargs[:host_port] || Intervention.host_port
+    end
+
+    def on_request(&block); block_given? ? @on_request = block : @on_request; end
+    def on_response(&block); block_given? ? @on_response = block : @on_response; end
 
     # Configure Proxy values
     #
@@ -56,7 +60,7 @@ module Intervention
         @state = "connecton_accepted"
 
         Thread.new do
-          run_transaction new_socket
+          Transaction.new(self, new_socket).initiate
         end
       end
 
@@ -66,25 +70,7 @@ module Intervention
       puts "Quitting #{@name}..."
     end
 
-    def run_transaction to_client
-      to_server = TCPSocket.new host_address, host_port
-
-      # request
-      request = Packet.new to_client, self
-      request.headers['host'] = host_address
-      request.headers['accept-encoding'] = "deflate,sdch" if request.headers['accept-encoding']
-      puts "[%s:%d] >>> [%s:%d]" % [ to_client.peeraddr[2], to_client.peeraddr[1], to_server.peeraddr[2], to_server.peeraddr[1]]
-      @on_request.call(request) if @on_request
-      request.send to_server
-
-      # response
-      response = Packet.new to_server, self
-      puts "[%s:%d] <<< [%s:%d]" % [ to_client.peeraddr[2], to_client.peeraddr[1], to_server.peeraddr[2], to_server.peeraddr[1]]
-      @on_response.call(response) if @on_response
-      response.send to_client
-
-      to_client.close
-      to_server.close
+    def __class__
     end
   end
 end
