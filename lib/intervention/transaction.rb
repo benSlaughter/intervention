@@ -50,7 +50,10 @@ module Intervention
       request.headers['host'] = proxy.host_address
       request.headers['accept-encoding'] = "deflate,sdch" if request.headers['accept-encoding']
 
+      # call the on_request methods
       proxy.on_request.call(self) if proxy.on_request
+      proxy.interventions.each { |i|  i.on_request self if i.respond_to? 'on_request' }
+
       send to_server, request
     end
 
@@ -62,7 +65,10 @@ module Intervention
       collect_headers to_server, response
       collect_body to_server, response
 
+      # call the on_response methods
       proxy.on_response.call(self) if proxy.on_response
+      proxy.interventions.each { |i|  i.on_response self if i.respond_to? 'on_response' }
+
       send to_client, response
     end
 
