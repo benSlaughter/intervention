@@ -3,10 +3,12 @@ require 'hashie'
 require 'json'
 require 'uri'
 
-require './lib/intervention/transaction'
-require './lib/intervention/proxy'
+require 'intervention/proxy'
+require 'intervention/transaction'
 
 module Intervention
+  Thread.abort_on_exception=true
+
   class << self
     attr_accessor :listen_port, :host_address, :host_port, :auto_start
 

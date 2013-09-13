@@ -1,5 +1,3 @@
-Thread.abort_on_exception=true
-
 module Intervention
   # Proxy
   # @attr_reader name [String] The proxies name
