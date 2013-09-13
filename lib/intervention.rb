@@ -3,10 +3,12 @@ require 'hashie'
 require 'json'
 require 'uri'
 
-require './lib/intervention/proxy'
-require './lib/intervention/packet'
+require 'intervention/proxy'
+require 'intervention/transaction'
 
 module Intervention
+  Thread.abort_on_exception=true
+
   class << self
     attr_accessor :listen_port, :host_address, :host_port, :auto_start
 
@@ -28,6 +30,12 @@ module Intervention
 
     # Creates a new proxy object
     # yields the configuration block if one is present
+    # @param name [String] the given name of the proxy
+    # Keyword Arguments:
+    # @param listen_port [Integer] The default listening port for the proxy server socket
+    # @param host_address [Hash] The default address for the forward socket to send to
+    # @param host_port [Integer] host_port The default port number for the forward socket to send to
+    # @returns [Proxy] the new proxy object
     #
     # Intervention.new_proxy "my_proxy", listen_port: 4000, host_address: "www.google.com"
     #
@@ -56,16 +64,29 @@ module Intervention
       proxies.each { |proxy| proxy.stop }
     end
 
+    # Proxies stores a list of all current proxies
+    # @returns [Array] of all the current proxies
+    #
     def proxies
       @proxies ||= []
     end
   end
 end
 
+# Test method, do not use
 def me
-  prox = Intervention.new_proxy "name", auto_start: true do |pr|
+  # include Intervention::Interventions::TopSites
+  @prox = Intervention.new_proxy "name", auto_start: true do |pr|
     pr.listen_port = 2222
     pr.host_port = 80
     pr.host_address = 'newapi.int.brandwatch.com'
+
+    pr.on_request do |t|
+      puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
+    end
+
+    pr.on_response do |t|
+      puts "[%s:%d] <<< [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
+    end
   end
 end
