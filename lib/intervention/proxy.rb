@@ -7,7 +7,7 @@ module Intervention
   # @attr_accessor host_port The default port number for the forward socket to send to
   #
   class Proxy
-    attr_reader :name, :state
+    attr_reader :name, :state, :interventions
     attr_accessor :listen_port, :host_address, :host_port
 
     # Overiting the default class inspect
@@ -24,11 +24,16 @@ module Intervention
     # @param host_port [Integer] The default port number for the forward socket to send to
     #
     def initialize name, **kwargs
-      @name         = name
-      @state        = "asleep"
-      @listen_port  = kwargs[:listen_port] || Intervention.listen_port
-      @host_address = kwargs[:host_address] || Intervention.host_address
-      @host_port    = kwargs[:host_port] || Intervention.host_port
+      @name          = name
+      @state         = "asleep"
+      @interventions = []
+      @listen_port   = kwargs[:listen_port] || Intervention.listen_port
+      @host_address  = kwargs[:host_address] || Intervention.host_address
+      @host_port     = kwargs[:host_port] || Intervention.host_port
+    end
+
+    def load_intervention intervention
+      @interventions << intervention
     end
 
     # Called upon a request being made

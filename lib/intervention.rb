@@ -5,6 +5,7 @@ require 'uri'
 
 require 'intervention/proxy'
 require 'intervention/transaction'
+require 'bw_intervention'
 
 module Intervention
   Thread.abort_on_exception=true
@@ -80,6 +81,8 @@ def me
     pr.listen_port = 2222
     pr.host_port = 80
     pr.host_address = 'newapi.int.brandwatch.com'
+
+    pr.load_intervention MyIntervention
 
     pr.on_request do |t|
       puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
