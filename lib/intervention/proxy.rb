@@ -32,8 +32,8 @@ module Intervention
       @host_port     = kwargs[:host_port] || Intervention.host_port
     end
 
-    def load_interventions arry
-      @interventions << arry
+    def load_intervention intervention
+      @interventions << intervention
     end
 
     # Called upon a request being made
