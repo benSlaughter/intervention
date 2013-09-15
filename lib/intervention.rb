@@ -5,7 +5,6 @@ require 'uri'
 
 require 'intervention/proxy'
 require 'intervention/transaction'
-require 'bw_intervention'
 
 module Intervention
   Thread.abort_on_exception=true
