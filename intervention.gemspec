@@ -14,13 +14,13 @@ Gem::Specification.new do |spec|
   spec.author       = 'Ben Slaughter'
   spec.email        = 'b.p.slaughter@gmail.com'
 
-  spec.add_development_dependency 'pry'
-  spec.add_runtime_dependency 'hashie'
+  spec.add_development_dependency 'pry', '~> 0.9.12.2'
+  spec.add_development_dependency 'rspec', '~> 2.13.0'
+  spec.add_runtime_dependency 'hashie', '~> 2.0.5'
 
   spec.files        = ['README.md', 'LICENSE', 'intervention.gemspec']
   spec.files        += Dir.glob("lib/**/*.rb")
   spec.files        += Dir.glob("spec/**/*")
   spec.test_files   = Dir.glob("spec/**/*")
   spec.require_path = 'lib'
-
 end
