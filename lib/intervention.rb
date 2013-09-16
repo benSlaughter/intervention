@@ -6,6 +6,11 @@ require 'uri'
 require 'intervention/proxy'
 require 'intervention/transaction'
 
+# requires all files within the interventions folder if it exists
+if File.directory? './interventions'
+  Dir["./interventions/*.rb"].each {|file| require file }
+end
+
 module Intervention
   Thread.abort_on_exception=true
 
