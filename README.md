@@ -1,5 +1,5 @@
+Intervention
 [![Build Status](https://travis-ci.org/benSlaughter/intervention.png?branch=master)](https://travis-ci.org/benSlaughter/intervention)
-
 ============
 
 A simple proxy management structure that can contain several proxies that can handle multiple transactions.
