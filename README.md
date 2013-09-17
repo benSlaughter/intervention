@@ -1,6 +1,6 @@
 Intervention
-[![Build Status](https://travis-ci.org/benSlaughter/intervention.png?branch=master)](https://travis-ci.org/benSlaughter/intervention)
 ============
+[![Build Status](https://travis-ci.org/benSlaughter/intervention.png?branch=master)](https://travis-ci.org/benSlaughter/intervention)
 
 A simple proxy management structure that can contain several proxies that can handle multiple transactions.
 Each proxy can be configured to run a block of code upon a request or response being made.
