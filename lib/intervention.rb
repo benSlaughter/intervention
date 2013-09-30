@@ -21,7 +21,7 @@ module Intervention
     # Starts intervention from a config file
     #
     def boot config_file = nil
-      config = YAML.load_file config_file || "./config/intervention.yml"
+      config = YAML.load_file config_file || "config/intervention.yml"
       config.each do | proxy_name, proxy_options |
         new_proxy proxy_name, proxy_options.inject({}){|memo,(k,v)| memo[k.to_sym] = v; memo}
       end
