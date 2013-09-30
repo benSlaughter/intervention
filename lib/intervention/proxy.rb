@@ -30,10 +30,11 @@ module Intervention
       @listen_port   = kwargs[:listen_port] || Intervention.listen_port
       @host_address  = kwargs[:host_address] || Intervention.host_address
       @host_port     = kwargs[:host_port] || Intervention.host_port
+      load_interventions kwargs[:interventions] if kwargs[:interventions]
     end
 
-    def load_intervention intervention
-      @interventions << intervention
+    def load_interventions ints_array
+      @interventions |= ints_array.map {|interv| interv.class == String ? Kernel.const_get(interv) : interv }
     end
 
     # Called upon a request being made
