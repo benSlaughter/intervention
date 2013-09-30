@@ -33,13 +33,8 @@ module Intervention
       load_interventions kwargs[:interventions] if kwargs[:interventions]
     end
 
-<<<<<<< HEAD
     def load_interventions ints_array
       @interventions |= ints_array.map {|interv| interv.class == String ? Kernel.const_get(interv) : interv }
-=======
-    def load_interventions *ints_array
-      @interventions |= ints_array.map {|const| Kernel.const_get const.to_s}
->>>>>>> e2effe0d12eadffde2d05a17e280f88d18949aa4
     end
 
     # Called upon a request being made
