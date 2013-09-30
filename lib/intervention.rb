@@ -2,6 +2,7 @@ require 'socket'
 require 'hashie'
 require 'json'
 require 'uri'
+require 'yaml'
 
 require 'intervention/proxy'
 require 'intervention/transaction'
@@ -16,6 +17,15 @@ module Intervention
 
   class << self
     attr_accessor :listen_port, :host_address, :host_port, :auto_start
+
+    # Starts intervention from a config file
+    #
+    def boot config_file = nil
+      config = YAML.load_file config_file || "config/intervention.yml"
+      config.each do | proxy_name, proxy_options |
+        new_proxy proxy_name, proxy_options.inject({}){|memo,(k,v)| memo[k.to_sym] = v; memo}
+      end
+    end
 
     # Configure Interventions default values
     #
@@ -78,22 +88,9 @@ module Intervention
   end
 end
 
-# Test method, do not use
-def me
-  # include Intervention::Interventions::TopSites
-  @prox = Intervention.new_proxy "name", auto_start: true do |pr|
-    pr.listen_port = 2222
-    pr.host_port = 80
-    pr.host_address = 'newapi.int.brandwatch.com'
-
-    pr.load_intervention MyIntervention
-
-    pr.on_request do |t|
-      puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
-    end
-
-    pr.on_response do |t|
-      puts "[%s:%d] <<< [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
-    end
-  end
+Intervention.configure do |config|
+  config.listen_port  = 3000
+  config.host_address = 'localhost'
+  config.host_port    = 80
+  config.auto_start   = true
 end
