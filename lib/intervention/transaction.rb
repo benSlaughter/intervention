@@ -20,14 +20,7 @@ module Intervention
       @to_server = TCPSocket.new proxy.host_address, proxy.host_port
       @request   = Hashie::Mash.new
       @response  = Hashie::Mash.new
-      @state     = "ready"
-    end
 
-    # initiate
-    # starts the transaction
-    # and cleans up once completed
-    #
-    def initiate
       request_magic
       response_magic
 
@@ -43,17 +36,16 @@ module Intervention
     #
     def request_magic
       @state = "in_request"
+      proxy.changed
       collect_headers to_client, request
       collect_body to_client, request
 
       # modify request host and accepted encoding to make life easy
       request.headers['host'] = proxy.host_address
-      request.headers['accept-encoding'] = "deflate,sdch" if request.headers['accept-encoding']
+      request.headers['accept-encoding'] = "deflate,sdch"
 
       # call the on_request methods
-      proxy.on_request.call(self) if proxy.on_request
-      proxy.interventions.each { |i|  i.on_request self if i.respond_to? 'on_request' }
-
+      proxy.call_event self, :request
       send to_server, request
     end
 
@@ -62,13 +54,12 @@ module Intervention
     #
     def response_magic
       @state = "in_response"
+      proxy.changed
       collect_headers to_server, response
       collect_body to_server, response
 
       # call the on_response methods
-      proxy.on_response.call(self) if proxy.on_response
-      proxy.interventions.each { |i|  i.on_response self if i.respond_to? 'on_response' }
-
+      proxy.call_event self, :response
       send to_client, response
     end
 
@@ -126,7 +117,7 @@ module Intervention
       message.headers.version = request_line[/HTTP\/(1\.\d)/, 1]
       message.headers.code    = request_line[/^HTTP\/1\.\d (\d+)/, 1]
       message.headers.status  = request_line[/^HTTP\/1\.\d \d+ (\w+)/ ,1]
-      message.headers.uri     = URI::parse proxy.host_address + message.headers.url if message.headers.url && proxy.host_address
+      message.headers.uri     = URI::parse proxy.host_address + message.headers.url if proxy.host_address && message.headers.url
 
       loop do
         line = read socket

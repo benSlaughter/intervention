@@ -4,4 +4,4 @@ output_proxy:
   host_port: 80
   host_address: "www.google.com"
   interventions:
-    - OutputIntervention
+    - OutputIntervention: "examples/output_intervention"

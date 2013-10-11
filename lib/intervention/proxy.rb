@@ -7,8 +7,10 @@ module Intervention
   # @attr_accessor host_port The default port number for the forward socket to send to
   #
   class Proxy
-    attr_reader :name, :state, :interventions
-    attr_accessor :listen_port, :host_address, :host_port
+    include Observable
+
+    attr_reader :name, :state
+    attr_accessor :listen_port, :host_address, :host_port, :agents
 
     # Overiting the default class inspect
     #
@@ -23,32 +25,28 @@ module Intervention
     # @param host_address [Hash] The default address for the forward socket to send to
     # @param host_port [Integer] The default port number for the forward socket to send to
     #
-    def initialize name, **kwargs
+    def initialize name, **kwargs, &block
       @name          = name
-      @state         = "asleep"
-      @interventions = []
+      @state         = "stopped"
       @listen_port   = kwargs[:listen_port] || Intervention.listen_port
       @host_address  = kwargs[:host_address] || Intervention.host_address
       @host_port     = kwargs[:host_port] || Intervention.host_port
-      load_interventions kwargs[:interventions] if kwargs[:interventions]
+      @agents        = kwargs[:agents] || Intervention.agents
+      @events        = Hashie::Mash.new
+
+      instance_eval(&block) if block_given?
+      agents.each {|a| add_observer(a)}
+
+      start if Intervention.auto_start || kwargs[:auto_start]
     end
 
-    def load_interventions ints_array
-      @interventions |= ints_array.map {|interv| interv.class == String ? Kernel.const_get(interv) : interv }
+    def call_event transaction, event
+      @events[event].call transaction if @events.has_key? event
+      notify_observers(transaction, event)
     end
 
-    # Called upon a request being made
-    # @returns [Proc] the stored request proc
-    #
-    def on_request(&block)
-      block_given? ? @on_request = block : @on_request
-    end
-
-    # Called upon a response being made
-    # @returns [Proc] the stored response proc
-    #
-    def on_response(&block)
-      block_given? ? @on_response = block : @on_response
+    def agent agent_name
+      @agents.select{|a| a.name == agent_name.to_sym }.first
     end
 
     # Configure Proxy values
@@ -71,11 +69,13 @@ module Intervention
     # returns control to the caller
     #
     def start
-      @server_socket = TCPServer.new @listen_port
-      @state = "socket_created"
+      if @state == "stopped"
+        @server_socket = TCPServer.new @listen_port
 
-      Thread.new do
-        run_proxy
+        Thread.new do
+          run_proxy
+        end
+        @state = "running"
       end
     end
 
@@ -83,23 +83,28 @@ module Intervention
     # Stops the server socket
     #
     def stop
-      @server_socket.close
-      @state = "stopped"
+      if @state == "running"
+        @server_socket.close
+        @state = "stopped"
+      end
     end
 
     private
+
+    # Creates an event
+    def on event, &block
+      @events[event] = block
+    end
 
     # Run proxy method, that is run within the thread
     # Passes self, self is the proxy
     #
     def run_proxy
       loop do
-        @state = "awaiting_connection"
         new_socket = @server_socket.accept
-        @state = "new_connection"
 
         Thread.new do
-          Transaction.new(self, new_socket).initiate
+          Transaction.new(self, new_socket)
         end
       end
 
