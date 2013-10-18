@@ -3,5 +3,3 @@ output_proxy:
   listen_port: 3000
   host_port: 80
   host_address: "www.google.com"
-  interventions:
-    - OutputIntervention: "examples/output_intervention"

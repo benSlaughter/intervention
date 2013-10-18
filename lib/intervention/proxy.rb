@@ -9,7 +9,7 @@ module Intervention
   class Proxy
     include Observable
 
-    attr_reader :name, :state
+    attr_reader :name
     attr_accessor :listen_port, :host_address, :host_port, :agents
 
     # Overiting the default class inspect
@@ -35,18 +35,38 @@ module Intervention
       @events        = Hashie::Mash.new
 
       instance_eval(&block) if block_given?
-      agents.each {|a| add_observer(a)}
-
-      start if Intervention.auto_start || kwargs[:auto_start]
+      agents.each {|agent| add_observer(agent)}
+      start if (kwargs.nil? ? Intervention.auto_start : kwargs[:auto_start])
     end
 
+    # Call a specifit event
+    # and notify all agents of this proxy
+    # @param transaction [Intervention::Transaction] each event is passed the current transaction
+    # @param event [Symbol] the event that has been triggered
+    #
     def call_event transaction, event
       @events[event].call transaction if @events.has_key? event
       notify_observers(transaction, event)
     end
 
+    # finds a proxies agent by the name
+    # returns the first agent that is found with a matching name
+    # @param agent_name [String, Symbol] the name that is assigned to the agent
+    #
     def agent agent_name
-      @agents.select{|a| a.name == agent_name.to_sym }.first
+      @agents.detect {|a| a.name == agent_name.to_sym }
+    end
+
+    # Returns Boolean value on the proxies status
+    #
+    def stopped?
+      @state == "stopped" ? true : false
+    end
+
+    # Returns Boolean value on the proxies status
+    #
+    def running?
+      @state == "running" ? true : false
     end
 
     # Configure Proxy values
@@ -69,13 +89,10 @@ module Intervention
     # returns control to the caller
     #
     def start
-      if @state == "stopped"
-        @server_socket = TCPServer.new @listen_port
-
-        Thread.new do
-          run_proxy
-        end
+      if stopped?
         @state = "running"
+        @server_socket = TCPServer.new @listen_port
+        Thread.new { run_proxy }
       end
     end
 
@@ -83,7 +100,7 @@ module Intervention
     # Stops the server socket
     #
     def stop
-      if @state == "running"
+      if running?
         @server_socket.close
         @state = "stopped"
       end
@@ -91,27 +108,28 @@ module Intervention
 
     private
 
-    # Creates an event
+    # Creates an event using the passed block
+    # @param event [Symbol] the name of the event
+    # @param block [Proc] the block that is run upon the event being triggered
+    #
     def on event, &block
-      @events[event] = block
+      @events[event.to_sym] = block
     end
 
-    # Run proxy method, that is run within the thread
-    # Passes self, self is the proxy
+    # Method that starts the thread and loops the proxy
+    # Passes self (proxy) into each transaction
+    # Ensures that all sockets are closed in the event of an error
     #
     def run_proxy
       loop do
         new_socket = @server_socket.accept
-
-        Thread.new do
-          Transaction.new(self, new_socket)
-        end
+        Thread.new { Transaction.new(self, new_socket) }
       end
 
     ensure
+      puts "Quitting proxy #{@name}..."
       @server_socket.close if @server_socket
       new_socket.close if defined? new_socket
-      puts "Quitting #{@name}..."
     end
   end
 end

@@ -26,7 +26,19 @@ module Intervention
 
       to_client.close
       to_server.close
-      @state = "ended"
+      @state = "finished"
+    end
+
+    # Returns Boolean value on the transactions status
+    #
+    def in_request?
+      @state == "in_request" ? true : false
+    end
+
+    # Returns Boolean value on the transactions status
+    #
+    def in_response?
+      @state == "in_response" ? true : false
     end
 
     private
@@ -112,12 +124,15 @@ module Intervention
 
       message.headers         = Hashie::Mash.new
       message.headers.request = request_line
-      message.headers.verb    = request_line[/^(\w+)+/, 1]
-      message.headers.url     = request_line[/^\w+\s+(\S+)/, 1]
-      message.headers.version = request_line[/HTTP\/(1\.\d)/, 1]
-      message.headers.code    = request_line[/^HTTP\/1\.\d (\d+)/, 1]
-      message.headers.status  = request_line[/^HTTP\/1\.\d \d+ (\w+)/ ,1]
-      message.headers.uri     = URI::parse proxy.host_address + message.headers.url if proxy.host_address && message.headers.url
+
+      if in_request?
+        message.headers.verb = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 1]
+        message.headers.url  = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 2]
+        message.headers.uri   = URI::parse proxy.host_address + message.headers.url if proxy.host_address
+      elsif in_response?
+        message.headers.code   = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 1]
+        message.headers.status = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 2]
+      end
 
       loop do
         line = read socket

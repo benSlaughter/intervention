@@ -6,14 +6,10 @@ require 'yaml'
 require 'observer'
 require 'pry'
 
-require_relative 'intervention/engine'
 require_relative 'intervention/proxy'
 require_relative 'intervention/transaction'
+require_relative 'intervention/engine'
 require_relative 'intervention/version'
-# requires all files within the interventions folder if it exists
-if File.directory? './intervention'
-  Dir["./intervention/*.rb"].each {|file| require file }
-end
 
 module Intervention
   Thread.abort_on_exception = true
@@ -82,8 +78,8 @@ module Intervention
       @proxies ||= Hashie::Mash.new
     end
 
-    def proxy name
-      @proxies[name.to_sym]
+    def proxy proxy_name
+      @proxies[proxy_name.to_sym]
     end
   end
 end

@@ -2,7 +2,7 @@ class MyAgent
   include Intervention::Engine
 
   def initialize
-    @name = :test
+    name = 'test'
     event :request, :on_request
     event :response, :on_response
   end
