@@ -5,6 +5,7 @@ require 'uri'
 require 'yaml'
 require 'observer'
 require 'pry'
+require 'utilise'
 
 require_relative 'intervention/proxy'
 require_relative 'intervention/transaction'

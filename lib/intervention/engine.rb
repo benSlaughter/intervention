@@ -1,6 +1,5 @@
 module Intervention
   module Engine
-    attr_reader :name
 
     def name
       @name.to_sym || :unnamed
@@ -8,14 +7,14 @@ module Intervention
 
     def update transaction, *proxy_events
       proxy_events.each do |event|
-        events[event].call(transaction) if events.respond_to? event
+        if events.respond_to?(event)
+          events[event].call(transaction)
+        end
       end
     end
 
-    private
-
-    def name= name
-      @name = name
+    def name= agent_name
+      @name = agent_name
     end
 
     def events
@@ -26,5 +25,17 @@ module Intervention
       events[event] = method(m)
     end
 
+  end
+end
+
+module Intervention
+  module Engine
+    module ClassMethods
+
+    end
+
+    def self.included(receiver)
+      receiver.extend         ClassMethods
+    end
   end
 end
