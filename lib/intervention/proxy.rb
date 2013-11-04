@@ -9,13 +9,12 @@ module Intervention
   class Proxy
     include Observable
 
-    attr_reader :name
-    attr_accessor :listen_port, :host_address, :host_port, :agents
+    attr_reader :name, :config
 
     # Overiting the default class inspect
     #
     def inspect
-      "#<Proxy:%s:%s listen:%s host:%s port:%s>" % [@name,@state,@listen_port,@host_address,@host_port]
+      "#<Proxy:%s:%s listen:%s host:%s port:%s>" % [@name, @config.state, @config.listen_port, @config.host_address, @config.host_port]
     end
 
     # Intervention::Proxy#initalize
@@ -26,54 +25,32 @@ module Intervention
     # @param host_port [Integer] The default port number for the forward socket to send to
     #
     def initialize name, **kwargs, &block
-      @name          = name
-      @state         = "stopped"
-      @listen_port   = kwargs[:listen_port] || Intervention.listen_port
-      @host_address  = kwargs[:host_address] || Intervention.host_address
-      @host_port     = kwargs[:host_port] || Intervention.host_port
-      @agents        = kwargs[:agents] || Intervention.agents
-      @events        = Hashie::Mash.new
+      @name            = name
+      @config          = Config.new **kwargs
+      @config.state    = "stopped"
+      @config.handlers = []
 
       instance_eval(&block) if block_given?
-      agents.each {|agent| add_observer(agent)}
-      start if (kwargs.nil? ? Intervention.auto_start : kwargs[:auto_start])
-    end
-
-    # Call a specifit event
-    # and notify all agents of this proxy
-    # @param transaction [Intervention::Transaction] each event is passed the current transaction
-    # @param event [Symbol] the event that has been triggered
-    #
-    def call_event transaction, event
-      @events[event].call transaction if @events.has_key? event
-      notify_observers(transaction, event)
-    end
-
-    # finds a proxies agent by the name
-    # returns the first agent that is found with a matching name
-    # @param agent_name [String, Symbol] the name that is assigned to the agent
-    #
-    def agent agent_name
-      @agents.detect {|a| a.name == agent_name.to_sym }
+      start if @config.auto_start
     end
 
     # Returns Boolean value on the proxies status
     #
     def stopped?
-      @state == "stopped" ? true : false
+      @config.state == "stopped" ? true : false
     end
 
     # Returns Boolean value on the proxies status
     #
     def running?
-      @state == "running" ? true : false
+      @config.state == "running" ? true : false
     end
 
     # Configure Proxy values
     #
-    # proxy_object.configure do |proxy|
-    #   proxy.listen_port = 4000
-    #   proxy.host_address = "www.google.com"
+    # proxy_object.configure do |config|
+    #   config.listen_port = 4000
+    #   config.host_address = "www.google.com"
     # end
     #
     # [listen_port = Integer]   The listening port for the proxy server socket
@@ -81,7 +58,7 @@ module Intervention
     # [host_port = Integer]     The port number for the forward socket to send to
     #
     def configure
-      yield self
+      yield @config
     end
 
     # Start Proxy
@@ -90,9 +67,9 @@ module Intervention
     #
     def start
       if stopped?
-        @state = "running"
-        @server_socket = TCPServer.new @listen_port
-        Thread.new { run_proxy }
+        @config.state = "running"
+        @server_socket = TCPServer.new @config.listen_port
+        @main_loop = Thread.new { _run_proxy }
       end
     end
 
@@ -101,26 +78,31 @@ module Intervention
     #
     def stop
       if running?
+        @main_loop.kill
         @server_socket.close
-        @state = "stopped"
+        @config.state = "stopped"
       end
     end
-
-    private
 
     # Creates an event using the passed block
     # @param event [Symbol] the name of the event
     # @param block [Proc] the block that is run upon the event being triggered
     #
     def on event, &block
-      @events[event.to_sym] = block
+      _register_event_handler event, block
+    end
+
+    private
+
+    def _register_event_handler event, block
+      @config.handlers << EventHandler.new(self, event, block)
     end
 
     # Method that starts the thread and loops the proxy
     # Passes self (proxy) into each transaction
     # Ensures that all sockets are closed in the event of an error
     #
-    def run_proxy
+    def _run_proxy
       loop do
         new_socket = @server_socket.accept
         Thread.new { Transaction.new(self, new_socket) }

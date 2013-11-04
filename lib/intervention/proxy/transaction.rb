@@ -17,8 +17,9 @@ module Intervention
       #
       def initialize proxy, to_client
         @proxy     = proxy
+        @config    = proxy.config
         @to_client = to_client
-        @to_server = TCPSocket.new proxy.host_address, proxy.host_port
+        @to_server = TCPSocket.new @config.host_address, @config.host_port
         @request   = Hashie::Mash.new
         @response  = Hashie::Mash.new
 
@@ -54,11 +55,11 @@ module Intervention
         collect_body to_client, request
 
         # modify request host and accepted encoding to make life easy
-        request.headers['host'] = proxy.host_address
+        request.headers['host'] = @config.host_address
         request.headers['accept-encoding'] = "deflate,sdch"
 
         # call the on_request methods
-        proxy.call_event self, :request
+        proxy.notify_observers(self, :request)
         send to_server, request
       end
 
@@ -72,7 +73,7 @@ module Intervention
         collect_body to_server, response
 
         # call the on_response methods
-        proxy.call_event self, :response
+        proxy.notify_observers(self, :response)
         send to_client, response
       end
 
@@ -123,13 +124,13 @@ module Intervention
         message.header_order = []
         request_line = read socket
 
-        message.headers         = Hashie::Mash.new
-        message.headers.request = request_line
+        message.headers          = Hashie::Mash.new
+        message.headers.request  = request_line
 
         if in_request?
-          message.headers.verb = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 1]
-          message.headers.url  = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 2]
-          message.headers.uri   = URI::parse proxy.host_address + message.headers.url if proxy.host_address
+          message.headers.verb   = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 1]
+          message.headers.url    = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 2]
+          message.headers.uri    = URI::parse @config.host_address + message.headers.url if @config.host_address && message.headers.url
         elsif in_response?
           message.headers.code   = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 1]
           message.headers.status = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 2]
@@ -182,7 +183,7 @@ module Intervention
         content = ""
 
         loop do
-          chunk_size = read socket
+          chunk_size = read(socket)
           break if chunk_size == '0'
           content << read(socket, chunk_size.to_i(16)+2)
         end

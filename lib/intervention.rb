@@ -5,18 +5,17 @@ require 'uri'
 require 'yaml'
 require 'observer'
 require 'pry'
-require 'utilise'
 
+require_relative 'intervention/config'
 require_relative 'intervention/proxy'
-require_relative 'intervention/transaction'
-require_relative 'intervention/engine'
+require_relative 'intervention/proxy/transaction'
+require_relative 'intervention/proxy/event_handler'
 require_relative 'intervention/version'
 
 module Intervention
   Thread.abort_on_exception = true
 
   class << self
-    attr_accessor :listen_port, :host_address, :host_port, :auto_start, :agents
 
     # Configure Interventions default values
     #
@@ -31,7 +30,7 @@ module Intervention
     # [auto_start = Boolean]    Whether to automaticly start the proxy upon creation
     #
     def configure
-      yield self
+      yield config
     end
 
     # Creates a new proxy object
@@ -72,15 +71,19 @@ module Intervention
       proxies.each { |name, proxy| proxy.stop }
     end
 
+    def proxy proxy_name
+      proxies[proxy_name.to_sym]
+    end
+
+    def config
+      @config ||= Hashie::Mash.new
+    end
+
     # Proxies stores a list of all current proxies
     # @returns [Array] of all the current proxies
     #
     def proxies
-      @proxies ||= Hashie::Mash.new
-    end
-
-    def proxy proxy_name
-      @proxies[proxy_name.to_sym]
+      config.proxies ||= Hashie::Mash.new
     end
   end
 end
@@ -90,5 +93,4 @@ Intervention.configure do |c|
   c.host_address = 'localhost'
   c.host_port    = 80
   c.auto_start   = true
-  c.agents       = []
 end
