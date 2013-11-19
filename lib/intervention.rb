@@ -2,7 +2,6 @@ require 'socket'
 require 'hashie'
 require 'json'
 require 'uri'
-require 'yaml'
 require 'observer'
 require 'pry'
 
