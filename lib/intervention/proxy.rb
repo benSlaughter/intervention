@@ -26,7 +26,7 @@ module Intervention
     #
     def initialize name, **kwargs, &block
       @name            = name
-      @config          = Config.new **kwargs
+      @config          = Intervention.config.merge Hashie::Mash.new(kwargs)
       @config.state    = "stopped"
       @config.handlers = []
 

@@ -1,17 +1,20 @@
-class MyAgent
-  include Intervention::Engine
+require 'pry'
+require 'intervention'
 
-  def initialize
-    name = 'test'
-    event :request, :on_request
-    event :response, :on_response
+prox = Intervention.new "proxy", auto_start: true do
+  configure do |proxy|
+    proxy.listen_port = 4000
+    proxy.host_port = 80
+    proxy.host_address = 'localhost'
   end
 
-  def on_request t
-   puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
+  on :request do |t|
+    puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
   end
 
-  def on_response t
+  on :response do |t|
     puts "[%s:%d] <<< [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
   end
 end
+
+binding.pry

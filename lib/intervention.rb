@@ -6,11 +6,10 @@ require 'yaml'
 require 'observer'
 require 'pry'
 
-require_relative 'intervention/config'
+require_relative 'intervention/version'
 require_relative 'intervention/proxy'
 require_relative 'intervention/proxy/transaction'
 require_relative 'intervention/proxy/event_handler'
-require_relative 'intervention/version'
 
 module Intervention
   Thread.abort_on_exception = true
@@ -88,9 +87,9 @@ module Intervention
   end
 end
 
-Intervention.configure do |c|
-  c.listen_port  = 3000
-  c.host_address = 'localhost'
-  c.host_port    = 80
-  c.auto_start   = true
+Intervention.configure do |config|
+  config.listen_port  = 3000
+  config.host_address = 'localhost'
+  config.host_port    = 80
+  config.auto_start   = false
 end
