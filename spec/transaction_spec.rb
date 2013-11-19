@@ -1,5 +1,5 @@
 require 'helper'
 
-describe Intervention::Transaction do
+describe Intervention::Proxy::Transaction do
 
 end

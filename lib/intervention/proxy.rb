@@ -7,13 +7,14 @@ module Intervention
   # @attr_accessor host_port The default port number for the forward socket to send to
   #
   class Proxy
-    attr_reader :name, :state, :interventions
-    attr_accessor :listen_port, :host_address, :host_port
+    include Observable
+
+    attr_reader :name, :config
 
     # Overiting the default class inspect
     #
     def inspect
-      "#<Proxy:%s:%s listen:%s host:%s port:%s>" % [@name,@state,@listen_port,@host_address,@host_port]
+      "#<Proxy:%s:%s listen:%s host:%s port:%s>" % [@name, @config.state, @config.listen_port, @config.host_address, @config.host_port]
     end
 
     # Intervention::Proxy#initalize
@@ -23,39 +24,33 @@ module Intervention
     # @param host_address [Hash] The default address for the forward socket to send to
     # @param host_port [Integer] The default port number for the forward socket to send to
     #
-    def initialize name, **kwargs
-      @name          = name
-      @state         = "asleep"
-      @interventions = []
-      @listen_port   = kwargs[:listen_port] || Intervention.listen_port
-      @host_address  = kwargs[:host_address] || Intervention.host_address
-      @host_port     = kwargs[:host_port] || Intervention.host_port
-      load_interventions kwargs[:interventions] if kwargs[:interventions]
+    def initialize name, **kwargs, &block
+      @name            = name
+      @config          = Intervention.config.merge Hashie::Mash.new(kwargs)
+      @config.state    = "stopped"
+      @config.handlers = []
+
+      instance_eval(&block) if block_given?
+      start if @config.auto_start
     end
 
-    def load_interventions ints_array
-      @interventions |= ints_array.map {|interv| interv.class == String ? Kernel.const_get(interv) : interv }
-    end
-
-    # Called upon a request being made
-    # @returns [Proc] the stored request proc
+    # Returns Boolean value on the proxies status
     #
-    def on_request(&block)
-      block_given? ? @on_request = block : @on_request
+    def stopped?
+      @config.state == "stopped" ? true : false
     end
 
-    # Called upon a response being made
-    # @returns [Proc] the stored response proc
+    # Returns Boolean value on the proxies status
     #
-    def on_response(&block)
-      block_given? ? @on_response = block : @on_response
+    def running?
+      @config.state == "running" ? true : false
     end
 
     # Configure Proxy values
     #
-    # proxy_object.configure do |proxy|
-    #   proxy.listen_port = 4000
-    #   proxy.host_address = "www.google.com"
+    # proxy_object.configure do |config|
+    #   config.listen_port = 4000
+    #   config.host_address = "www.google.com"
     # end
     #
     # [listen_port = Integer]   The listening port for the proxy server socket
@@ -63,7 +58,7 @@ module Intervention
     # [host_port = Integer]     The port number for the forward socket to send to
     #
     def configure
-      yield self
+      yield @config
     end
 
     # Start Proxy
@@ -71,11 +66,10 @@ module Intervention
     # returns control to the caller
     #
     def start
-      @server_socket = TCPServer.new @listen_port
-      @state = "socket_created"
-
-      Thread.new do
-        run_proxy
+      if stopped?
+        @config.state = "running"
+        @server_socket = TCPServer.new @config.listen_port
+        @main_loop = Thread.new { _run_proxy }
       end
     end
 
@@ -83,30 +77,41 @@ module Intervention
     # Stops the server socket
     #
     def stop
-      @server_socket.close
-      @state = "stopped"
+      if running?
+        @main_loop.kill
+        @server_socket.close
+        @config.state = "stopped"
+      end
+    end
+
+    # Creates an event using the passed block
+    # @param event [Symbol] the name of the event
+    # @param block [Proc] the block that is run upon the event being triggered
+    #
+    def on event, &block
+      _register_event_handler event, block
     end
 
     private
 
-    # Run proxy method, that is run within the thread
-    # Passes self, self is the proxy
-    #
-    def run_proxy
-      loop do
-        @state = "awaiting_connection"
-        new_socket = @server_socket.accept
-        @state = "new_connection"
+    def _register_event_handler event, block
+      @config.handlers << EventHandler.new(self, event, block)
+    end
 
-        Thread.new do
-          Transaction.new(self, new_socket).initiate
-        end
+    # Method that starts the thread and loops the proxy
+    # Passes self (proxy) into each transaction
+    # Ensures that all sockets are closed in the event of an error
+    #
+    def _run_proxy
+      loop do
+        new_socket = @server_socket.accept
+        Thread.new { Transaction.new(self, new_socket) }
       end
 
     ensure
+      puts "Quitting proxy #{@name}..."
       @server_socket.close if @server_socket
       new_socket.close if defined? new_socket
-      puts "Quitting #{@name}..."
     end
   end
 end
