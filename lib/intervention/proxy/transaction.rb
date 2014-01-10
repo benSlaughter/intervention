@@ -2,7 +2,9 @@ module Intervention
   class Proxy
     class Transaction
       attr_reader :to_client, :to_server, :proxy
-      attr_accessor :response, :request
+      attr_accessor :response, :request, :loopback
+
+      Message = Struct.new(:type, :headers, :body, :header_order)
 
       # Overiting the default class inspect
       #
@@ -18,13 +20,18 @@ module Intervention
       def initialize proxy, to_client
         @proxy     = proxy
         @config    = proxy.config
+        @loopback  = false
         @to_client = to_client
         @to_server = TCPSocket.new @config.host_address, @config.host_port
-        @request   = Hashie::Mash.new
-        @response  = Hashie::Mash.new
+        @request   = Message.new("request", Hashie::Mash.new, Hashie::Mash.new, [])
+        @response  = Message.new("response", Hashie::Mash.new, Hashie::Mash.new, [])
 
-        request_magic
-        response_magic
+        receive_request
+        unless @loopback
+          send_request
+          receive_response
+        end
+        send_response
 
         to_client.close
         to_server.close
@@ -45,161 +52,38 @@ module Intervention
 
       private
 
-      # request_magic
-      # deals with the request part of the transactions
-      #
-      def request_magic
+      def receive_request
         @state = "in_request"
-        proxy.changed
-        collect_headers to_client, request
-        collect_body to_client, request
+        receive_headers to_client, request
+        receive_body to_client, request
 
         # modify request host and accepted encoding to make life easy
         request.headers['host'] = @config.host_address
         request.headers['accept-encoding'] = "deflate,sdch"
 
-        # call the on_request methods
-        proxy.notify_observers(self, :request)
-        send to_server, request
-      end
-
-      # response_magic
-      # deals with the response part of the transaction
-      #
-      def response_magic
-        @state = "in_response"
+        # call the request observers
         proxy.changed
-        collect_headers to_server, response
-        collect_body to_server, response
+        proxy.notify_observers(self, :request)
+      end
 
-        # call the on_response methods
+      def send_request
+        send_headers to_server, request
+        send_body to_server, request
+      end
+
+      def receive_response
+        @state = "in_response"
+        receive_headers to_server, response
+        receive_body to_server, response
+
+        # call the response observers
+        proxy.changed
         proxy.notify_observers(self, :response)
-        send to_client, response
       end
 
-      # send
-      # @param socket [Socket] the socket that the message will be sent to
-      # @param message [Hashie::Mash] the response or request to send
-      # sends the given message down the given socket
-      # sends the data as it was recived
-      #
-      def send socket, message
-        # send headers
-        write socket, message.headers.request
-
-        message.header_order.each do |o|
-          write socket, o + ": " + message.headers[o]
-        end
-        # finished sending headers
-        write socket, ""
-
-        # send body
-        if message.header_order.include? 'content-length'
-          write socket, message.body.content
-          # finished sending body
-          socket.write ""
-
-        elsif message.header_order.include? 'transfer-encoding'
-          case message.headers['transfer-encoding']
-          when 'chunked'
-            message.body.content.scan(/.{1,4000}/).each do |slice|
-              write socket, slice.size.to_s(16)
-              write socket, slice
-            end
-            write socket, "0"
-          end
-          # finished sending body
-          write socket, ""
-
-        end
-      end
-
-      # collect_headers
-      # @param socket [Socket] the socket that headers shall be collected from
-      # @param message [Hashie::Mash] the response or request
-      # assesses the message and collects the headers
-      # also breaks apart the request message and stores the information
-      #
-      def collect_headers socket, message
-        message.header_order = []
-        request_line = read socket
-
-        message.headers          = Hashie::Mash.new
-        message.headers.request  = request_line
-
-        if in_request?
-          message.headers.verb   = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 1]
-          message.headers.url    = request_line[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 2]
-          message.headers.uri    = URI::parse @config.host_address + message.headers.url if @config.host_address && message.headers.url
-        elsif in_response?
-          message.headers.code   = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 1]
-          message.headers.status = request_line[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 2]
-        end
-
-        loop do
-          line = read socket
-
-          if line =~ /^proxy/i
-            next
-          elsif line.strip.empty?
-            break
-          else
-            key, value = line.split ": "
-            message.headers[key.downcase] = value
-            message.header_order << key.downcase
-          end
-        end
-        message.headers
-      end
-
-      # collect_body
-      # @param socket [Socket] the socket that body shall be collected from
-      # @param message [Hashie::Mash] the response or request
-      # assessed the body and then collects the data
-      #
-      def collect_body socket, message
-        message.body = Hashie::Mash.new
-
-        if message.header_order.include? 'content-length'
-          message.body.content = read socket, message.headers['content-length']
-
-        elsif message.header_order.include? 'transfer-encoding'
-          case message.headers['transfer-encoding']
-          when 'chunked'
-            get_chunked_content socket, message
-          end
-        end
-        message.body
-      end
-
-      # get_chunked_content
-      # @param socket [Socket] the socket that chunked data shall be collected from
-      # @param message [Hashie::Mash] the response or request
-      # if the body of a message contains chunked content
-      # this reads the chunk size
-      # then reads in that data
-      # once all collected the body content is updated
-      def get_chunked_content socket, message
-        content = ""
-
-        loop do
-          chunk_size = read(socket)
-          break if chunk_size == '0'
-          content << read(socket, chunk_size.to_i(16)+2)
-        end
-        message.body.content = content unless content.empty?
-      end
-
-      # dismante_content
-      # @param message [Hashie::Mash] the response or request
-      # if the content is json then parses the body content and store
-      #
-      def dismantle_content message
-        if message.headers['content-type'].include? "application/json"
-          temp = Hashie::Mash.new
-          temp.update JSON.parse message.body.content
-          message.body.simple = temp
-        end
+      def send_response
+        send_headers to_client, response
+        send_body to_client, response
       end
 
       # read method for simplicity
@@ -209,7 +93,7 @@ module Intervention
       #
       def read socket, size = nil
         if size
-          line = socket.read size.to_i
+          line = socket.read size.to_i+2
         else
           line = socket.readline "\r\n"
         end
@@ -224,6 +108,136 @@ module Intervention
       def write socket, message
         socket.write message.to_s + "\r\n"
       end
+
+      # parse_request_line
+      # @param socket [Socket] the socket that headers shall be received from
+      # @param message [Message] the response or request
+      # Reads in the request line
+      # Goes through the request line and breaks it down with regex
+      #
+      def parse_request_line socket, message
+        message.headers.request  = read socket
+
+        if in_request?
+          message.headers.verb   = message.headers.request[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 1]
+          message.headers.url    = message.headers.request[/^(\w+)\s(\/\S+)\sHTTP\/1.\d$/, 2]
+          message.headers.uri    = URI::parse @config.host_address + message.headers.url if @config.host_address && message.headers.url
+        elsif in_response?
+          message.headers.code   = message.headers.request[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 1]
+          message.headers.status = message.headers.request[/^HTTP\/1.\d\s(\d+)\s(\w+)$/, 2]
+        end
+      end
+
+      # receive_headers
+      # @param socket [Socket] the socket that headers shall be received from
+      # @param message [Message] the response or request
+      # Collects and stores the headers of the message
+      #
+      def receive_headers socket, message
+        parse_request_line socket, message
+
+        loop do
+          line = read socket
+
+          if line =~ /^proxy/i
+            next
+          elsif line.strip.empty?
+            break
+          else
+            key, value = line.split ": "
+            message.headers[key.downcase] = value
+            message.header_order << key.downcase
+          end
+        end
+      end
+
+      # send_headers
+      # @param socket [Socket] the socket that body shall be collected from
+      # @param message [Message] the response or request
+      # Sends the message request line
+      # Sends each of the headers in the order they were recived
+      #
+      def send_headers socket, message
+        write socket, message.headers.request
+
+        message.header_order.each do |header|
+          write socket, header + ": " + message.headers[header]
+        end
+
+        write socket, ""
+      end
+
+      # receive_body
+      # @param socket [Socket] the socket that body shall be collected from
+      # @param message [Message] the response or request
+      # Collects and stores the body of the message
+      #
+      def receive_body socket, message
+        if message.headers.key? 'content-length'
+          message.body.content = read socket, message.headers['content-length']
+        elsif message.headers.key? 'transfer-encoding'
+          case message.headers['transfer-encoding']
+          when 'chunked'
+            receive_chunked_content socket, message
+          else
+            raise "Unknown transfer-encoding: %s" % message.headers['transfer-encoding']
+          end
+        end
+      end
+
+      # send_body
+      # @param socket [Socket] the socket that body shall be collected from
+      # @param message [Message] the response or request
+      # If the message has a content length only the content is sent
+      # If the message has chunked content it is sent in chunked form
+      #
+      def send_body socket, message
+        if message.header_order.include? 'content-length'
+          write socket, message.body.content.to_json
+          write socket, ""
+
+        elsif message.header_order.include? 'transfer-encoding'
+          case message.headers['transfer-encoding']
+          when 'chunked'
+            send_chunked_content socket, message
+          else
+            raise "Unknown transfer-encoding: %s" % message.headers['transfer-encoding']
+          end
+          write socket, ""
+        end
+      end
+
+      # receive_chunked_content
+      # @param socket [Socket] the socket that chunked data shall be collected from
+      # @param message [Hashie::Mash] the response or request
+      # Iterrates over the chunked content
+      # Reads in the content size
+      # Reads in the chunked content
+      # Adds the chunked content to the body
+      #
+      def receive_chunked_content socket, message
+        temp_content = ""
+
+        loop do
+          chunk_size = read(socket)
+          break if chunk_size == "0"
+          temp_content << read(socket, chunk_size.to_i(16))
+        end
+        message.body.update JSON.parse(temp_content) unless temp_content.empty?
+      end
+
+      # send_chunked_data
+      # Converts the body to json
+      # Sends body in large chunks
+      #
+      def send_chunked_content socket, message
+        message.body.to_json.scan(/.{1,4000}/).each do |slice|
+          write socket, slice.size.to_s(16)
+          write socket, slice
+        end
+        write socket, "0"
+      end
+
     end
   end
 end
