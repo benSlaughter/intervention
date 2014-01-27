@@ -4,7 +4,7 @@ module Intervention
     attr_reader :client
 
     def inspect
-      "#<Server host:%s port:%s>" % [Intervention.config.host_address, Intervention.config.host_port]
+      "#<Server:%s host:%s port:%s>" % [(object_id << 1).to_s(16), Intervention.config.host_address, Intervention.config.host_port]
     end
 
     def initialize *args, **kwargs, &block
@@ -39,14 +39,15 @@ module Intervention
 
     def on_message_complete
       if @headers['Content-Encoding'] && @headers['Content-Encoding'] == "gzip"
-        io = StringIO.new(@body)
-        gz = Zlib::GzipReader.new(io)
-        gz.each do | l |
-          puts l
+        temp = ""
+        gz = Zlib::GzipReader.new(StringIO.new(@body))
+        gz.each do | line |
+          temp << line
         end
-      else
-        puts @body
+        @body = temp
       end
+
+      puts @body
     end
   end
 end

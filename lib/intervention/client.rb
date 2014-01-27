@@ -4,7 +4,7 @@ module Intervention
     attr_reader :server
 
     def inspect
-      "#<Client listen:%s>" % Intervention.config.listen_port
+      "#<Client:%s listen:%s>" % [(object_id << 1).to_s(16), Intervention.config.listen_port]
     end
 
     def post_init
@@ -36,17 +36,15 @@ module Intervention
 
     def on_message_complete
       if @headers['Content-Encoding'] && @headers['Content-Encoding'] == "gzip"
-        while c
-          io = StringIO.new(c)
-          gz = Zlib::GzipReader.new(io)
-          gz.each do | l |
-            puts l
-          end
-          c = gz.unused   # take unprocessed portion of the string as the next archive
+        temp = ""
+        gz = Zlib::GzipReader.new(StringIO.new(@body))
+        gz.each do | line |
+          temp << line
         end
-      else
-        puts @body
+        @body = temp
       end
+
+      puts @body
     end
   end
 end
