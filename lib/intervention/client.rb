@@ -1,7 +1,7 @@
 module Intervention
   class Client < EventMachine::Connection
 
-    attr_reader :server
+    attr_reader :server, :parser, :request
 
     def inspect
       "#<Client:%s listen:%s>" % [(object_id << 1).to_s(16), Intervention.config.listen_port]
@@ -9,42 +9,75 @@ module Intervention
 
     def post_init
       Intervention.config.client = self
-      @http_parser = Http::Parser.new(self)
+      @parser = Http::Parser.new(self)
       @server = EventMachine.connect Intervention.config.host_address, Intervention.config.host_port, Intervention::Server, client: self
     end
 
     def receive_data data
-      puts "RECEIVED FROM CLIENT"
       data.sub!("Host: localhost:", "Host: #{Intervention.config.host_address}:")
-      @http_parser << data
-      @server.send_data data
+      @parser << data
     end
 
     def on_message_begin
-      @headers = nil
-      @body = ''
+      @request = Hashie::Mash.new
+      @request.headers = Hashie::Mash.new
+      @request.body = ''
     end
 
     def on_headers_complete(headers)
-      @headers = headers
-      p headers
+      @request.headers.update headers
     end
 
     def on_body(chunk)
-      @body << chunk
+      @request.body << chunk
     end
 
     def on_message_complete
-      if @headers['Content-Encoding'] && @headers['Content-Encoding'] == "gzip"
+      if @request.headers['Content-Encoding'] && @request.headers['Content-Encoding'] == "gzip"
         temp = ""
-        gz = Zlib::GzipReader.new(StringIO.new(@body))
+        gz = Zlib::GzipReader.new(StringIO.new(@request.body))
         gz.each do | line |
           temp << line
         end
-        @body = temp
+        @request.body = temp
+        @request.headers.delete('Content-Encoding')
       end
 
-      puts @body
+      callback :request
+      forward_request
+    end
+
+    private
+
+    def callback event
+      Intervention.event_handlers[event].call(self) if Intervention.event_handlers.key? event
+      Intervention.callbacks.each { |c| c.send(event, self) if c.respond_to? event }
+    end
+
+    def request_line
+      "%s %s HTTP/%d.%d" % [@parser.http_method, @parser.request_url, @parser.http_major, @parser.http_minor]
+    end
+
+    def forward_request
+      @request.headers['Host'] = Intervention.config.host_address
+      @request.headers['Accept-Encoding'] = "deflate"
+      send_request
+    end
+
+    def send_request
+      send request_line
+      @request.headers.each do |key, value|
+        send "%s: %s" % [key, value]
+      end
+      send ""
+      unless @request.body.empty?
+        send @request.body
+      end
+      send ""
+    end
+
+    def send data
+      @server.send_data data + "\r\n"
     end
   end
 end
