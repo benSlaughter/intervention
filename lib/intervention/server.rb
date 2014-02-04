@@ -1,6 +1,5 @@
 module Intervention
   class Server < EventMachine::Connection
-
     attr_reader :client, :parser
 
     def inspect
@@ -18,15 +17,13 @@ module Intervention
     end
 
     def receive_data data
-      @parser.parse data
+      @parser.parse_data data
     end
 
-    def on_message_complete
+    def on_message_complete parser
       callback :response
-
-      @response.headers.delete("Transfer-Encoding")
-      @response.headers['Content-Length'] = @response.body.length.to_s
       @client.send_data @parser.raw_data
+      @client.close_connection_after_writing
     end
 
     private

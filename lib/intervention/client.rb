@@ -1,6 +1,5 @@
 module Intervention
   class Client < EventMachine::Connection
-
     attr_reader :server, :parser
 
     def inspect
@@ -14,14 +13,13 @@ module Intervention
     end
 
     def receive_data data
-      @parser.parse data
+      @parser.parse_data data
     end
 
-    def on_body_complete parser
+    def on_message_complete parser
       callback :request
-
       @parser.headers['host'] = Intervention.config.host_address
-      @request.headers['accept-encoding'] = "deflate"
+      @parser.headers['accept-encoding'] = "deflate"
       @server.send_data @parser.raw_data
     end
 
