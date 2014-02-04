@@ -6,7 +6,7 @@ require 'observer'
 require 'pry'
 require 'zlib'
 require 'eventmachine'
-require 'http/parser'
+require 'segregate'
 
 require_relative 'intervention/version'
 require_relative 'intervention/server'
