@@ -27,5 +27,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency 'rspec'
   spec.add_runtime_dependency 'hashie'
   spec.add_runtime_dependency 'eventmachine'
-  spec.add_runtime_dependency 'http_parser.rb'
+  spec.add_runtime_dependency 'segregate'
 end
