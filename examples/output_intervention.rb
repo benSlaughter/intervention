@@ -1,20 +1,24 @@
 require 'pry'
 require 'intervention'
 
-prox = Intervention.new "proxy", auto_start: true do
-  configure do |proxy|
-    proxy.listen_port = 4000
-    proxy.host_port = 80
-    proxy.host_address = 'localhost'
+module Test
+  def self.request connection
+    p connection.parser.path
+    p connection.parser.headers
+    p connection.parser.body
   end
 
-  on :request do |t|
-    puts "[%s:%d] >>> [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
-  end
-
-  on :response do |t|
-    puts "[%s:%d] <<< [%s:%d]" % [ t.to_client.peeraddr[2], t.to_client.peeraddr[1], t.to_server.peeraddr[2], t.to_server.peeraddr[1]]
+  def self.response connection
+    p connection.parser.status_code
+    p connection.parser.headers
+    p connection.parser.body
   end
 end
+
+
+Intervention.on(:request) {|c| puts "\n-------------------\nreceived request\n-------------------\n"}
+Intervention.on(:response) {|c| puts "\n-------------------\nreceived response\n-------------------\n"}
+Intervention.callback Test
+Intervention.start
 
 binding.pry
