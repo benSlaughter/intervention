@@ -22,8 +22,10 @@ module Intervention
 
     def on_message_complete parser
       callback :response
+
       @client.send_data @parser.raw_data
       @client.close_connection_after_writing
+      self.close_connection
     end
 
     private

@@ -9,7 +9,6 @@ module Intervention
     def post_init
       Intervention.config.client = self
       @parser = Segregate.new(self)
-      @server = EventMachine.connect Intervention.config.host_address, Intervention.config.host_port, Intervention::Server, client: self
     end
 
     def receive_data data
@@ -18,8 +17,8 @@ module Intervention
 
     def on_message_complete parser
       callback :request
-      @parser.headers['host'] = Intervention.config.host_address
-      @parser.headers['accept-encoding'] = "deflate"
+
+      @server = EventMachine.connect (@parser.uri.host || @parser.headers['host']), Intervention.config.host_port, Intervention::Server, client: self
       @server.send_data @parser.raw_data
     end
 
