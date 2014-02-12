@@ -54,6 +54,14 @@ module Intervention
     def callbacks
       @config.callbacks ||= []
     end
+
+    def clients
+      @config.clients ||= []
+    end
+
+    def servers
+      @config.servers ||= []
+    end
   end
 end
 

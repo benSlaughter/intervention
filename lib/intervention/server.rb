@@ -12,8 +12,8 @@ module Intervention
     end
 
     def post_init
-      Intervention.config.server = self
-      @parser = Segregate.new(self)
+      Intervention.servers << self
+      @parser = Segregate.new(self, debug: true)
     end
 
     def receive_data data
@@ -25,6 +25,12 @@ module Intervention
 
       @client.send_data @parser.raw_data
       @client.close_connection_after_writing
+      self.close_connection
+      Intervention.servers.delete self
+    end
+
+    def unbind
+      @client.close_connection_after_writing if @client
       self.close_connection
     end
 

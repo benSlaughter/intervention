@@ -7,8 +7,8 @@ module Intervention
     end
 
     def post_init
-      Intervention.config.client = self
-      @parser = Segregate.new(self)
+      Intervention.clients << self
+      @parser = Segregate.new(self, debug: true)
     end
 
     def receive_data data
@@ -20,6 +20,12 @@ module Intervention
 
       @server = EventMachine.connect (@parser.uri.host || @parser.headers['host']), Intervention.config.host_port, Intervention::Server, client: self
       @server.send_data @parser.raw_data
+      Intervention.clients.delete self
+    end
+
+    def unbind
+      @server.close_connection_after_writing if @server
+      self.close_connection
     end
 
     private
