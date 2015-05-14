@@ -71,7 +71,6 @@ Thread.new{ EventMachine.run{ thread.wakeup } }
 Thread.stop
 
 Intervention.configure do |config|
-  config.listen_port  = 2222
-  config.host_address = 'localhost'
-  config.host_port    = 80
+  config.listen_port = 2222
+  config.host_port   = { 'localhost' => 80 }
 end
