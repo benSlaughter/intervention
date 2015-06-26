@@ -1,4 +1,4 @@
 module Intervention
-  VERSION = "0.2.0".freeze
-  DATE = "2015-05-14".freeze
+  VERSION = "0.3.0".freeze
+  DATE = "2015-06-26".freeze
 end

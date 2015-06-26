@@ -76,5 +76,4 @@ Thread.stop
 
 Intervention.configure do |config|
   config.listen_port = 2222
-  config.host_port   = { 'localhost' => 80 }
 end
