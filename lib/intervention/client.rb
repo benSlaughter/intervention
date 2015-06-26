@@ -18,14 +18,17 @@ module Intervention
     def on_message_complete parser
       callback :request
 
+      if Intervention.requests_to_block.include?(@parser.path)
+        self.close_connection
+        Intervention.clients.delete self
+        return
+      end
+
       host = @parser.headers['host'][/([^\:]*)(?:\:|$)/,1]
       port = (@parser.headers['host'][/(?:\:)(\d+)/,1] || 80)
 
-      if Intervention.config.host_port.keys.include?(host)
-        @server = EventMachine.connect host, Intervention.config.host_port[host], Intervention::Server, client: self
-      else
-        @server = EventMachine.connect host, port, Intervention::Server, client: self
-      end
+      @server = EventMachine.connect host, port, Intervention::Server, client: self
+
       @server.send_data @parser.raw_data
       Intervention.clients.delete self
     end

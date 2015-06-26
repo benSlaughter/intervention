@@ -62,6 +62,10 @@ module Intervention
     def servers
       @config.servers ||= []
     end
+
+    def requests_to_block
+      @config.requests_to_block ||= []
+    end
   end
 end
 
