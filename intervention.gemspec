@@ -20,6 +20,8 @@ Gem::Specification.new do |spec|
   spec.test_files   = Dir.glob("spec/**/*")
   spec.require_path = 'lib'
 
+  spec.required_ruby_version = '>= 2.1.0'
+
   spec.add_development_dependency 'rake'
   spec.add_development_dependency 'yard'
   spec.add_development_dependency 'coveralls'

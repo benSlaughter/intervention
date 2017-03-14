@@ -17,7 +17,7 @@ Thread.abort_on_exception = true
 module Intervention
   class << self
 
-    def method_missing meth, *args, **kwargs, &block
+    def method_missing(meth, *args, **kwargs, &block)
       if config.respond_to? meth
         config.send meth, *args, **kwargs, &block
       else
@@ -25,8 +25,39 @@ module Intervention
       end
     end
 
+    def respond_to_missing?(method_name, include_private = false)
+      config.respond_to?(method_name) || super
+    end
+
     def start *args, **kwargs, &block
-      EventMachine.start_server 'localhost', config.listen_port, Intervention::Client
+      raise 'you must specify at least one port' unless any_port_configured?
+
+      start_http_server if config.port
+      start_https_server if config.tls_port
+    end
+
+    def start_http_server
+      EventMachine.start_server(
+          'localhost',
+          config.port,
+          Intervention::Client
+      )
+    end
+
+    def start_https_server
+      raise 'you must specify a private key file' unless config.private_key_file
+      raise 'you must specify a certificate file' unless config.cert_chain_file
+
+      EventMachine.start_server(
+          'localhost',
+          config.tls_port,
+          Intervention::Client,
+          config
+      )
+    end
+
+    def any_port_configured?
+      config.port || config.tls_port
     end
 
     def configure
@@ -73,7 +104,3 @@ thread = Thread.current
 Thread.new{ EventMachine.run{ thread.wakeup } }
 # pause until reactor starts
 Thread.stop
-
-Intervention.configure do |config|
-  config.listen_port = 2222
-end

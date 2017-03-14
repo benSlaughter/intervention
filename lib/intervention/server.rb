@@ -11,9 +11,18 @@ module Intervention
       @client = kwargs[:client]
     end
 
+    def connection_completed
+      start_tls if @client.enable_tls
+    end
+
     def post_init
       Intervention.servers << self
       @parser = Segregate.new(self, debug: true)
+    end
+
+    def ssl_handshake_completed
+      send_data @client.parser.raw_data
+      Intervention.clients.delete @client
     end
 
     def receive_data data
